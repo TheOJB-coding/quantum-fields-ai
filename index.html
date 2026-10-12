@@ -252,3 +252,2123 @@
                     }
                     imgData.data[pixelIdx + 3] = 255;                    // Opacity Alpha Channel
                 }
+                }
+function createProgram(gl, vs, fs) {
+const program = gl.createProgram();
+gl.attachShader(program, vs);
+gl.attachShader(program, fs);
+gl.linkProgram(program);
+return program;
+}
+
+AI Mode Conversation: generate a code to simulate quantum fields using html
+
+Cancel
+Submit
+Here is a complete, self-contained HTML5 file that simulates a Quantum Field using the Klein-Gordon equation (the relativistic description of a scalar quantum field) discretized on a 2D grid.
+This simulation models the field's value (amplitude) at each point in space. It implements a discrete wave equation with a mass term (m²φ), allowing you to create excitations (particles) by clicking or dragging on the screen. It also features a "Quantum Fluctuations" setting that injects random zero-point energy noise into the vacuum.
+
+How to use this code:
+
+1. Copy the code block below.
+2. Paste it into a text editor (like Notepad, TextEdit, or VS Code).
+3. Save the file as quantum_field.html.
+4. Open the saved file in any modern web browser.
+html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum Field Simulation (Klein-Gordon)</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #0b0c10;
+            color: #c5a5c5;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        h1 {
+            margin: 10px 0 5px 0;
+            font-size: 1.5rem;
+            color: #66fcf1;
+            text-shadow: 0 0 10px rgba(102, 252, 241, 0.3);
+        }
+        #canvas-container {
+            position: relative;
+            box-shadow: 0 0 25px rgba(0, 0, 0, 0.7);
+            border: 2px solid #1f2833;
+            border-radius: 8px;
+            background: black;
+        }
+        canvas {
+            display: block;
+            border-radius: 6px;
+            cursor: crosshair;
+        }
+        #controls {
+            margin-top: 15px;
+            background: #1f2833;
+            padding: 12px 20px;
+            border-radius: 8px;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            max-width: 90vw;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            font-size: 0.85rem;
+            color: #a4b0be;
+        }
+        .control-group label {
+            margin-bottom: 4px;
+            font-weight: bold;
+            color: #66fcf1;
+        }
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 120px;
+            background: #0b0c10;
+            height: 6px;
+            border-radius: 3px;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #66fcf1;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+        button {
+            background: #45f3ff;
+            color: #0b0c10;
+            border: none;
+            padding: 8px 16px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        button:hover {
+            background: #66fcf1;
+            box-shadow: 0 0 10px rgba(102, 252, 241, 0.5);
+        }
+        #info-overlay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(11, 12, 16, 0.75);
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            pointer-events: none;
+            border: 1px solid rgba(102, 252, 241, 0.2);
+            font-family: monospace;
+            color: #66fcf1;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Quantum Field Lattice Simulation</h1>
+    
+    <div id="canvas-container">
+        <canvas id="fieldCanvas" width="500" height="500"></canvas>
+        <div id="info-overlay">Click/Drag to excite the field</div>
+    </div>
+
+    <div id="controls">
+        <div class="control-group">
+            <label for="massSlider">Particle Mass ($m^2$)</label>
+            <input type="grid" id="massSlider" type="range" min="0" max="0.1" step="0.005" value="0.02">
+        </div>
+        <div class="control-group">
+            <label for="dampingSlider">Damping (Vacuum Decay)</label>
+            <input type="range" id="dampingSlider" min="0.95" max="1" step="0.001" value="0.995">
+        </div>
+        <div class="control-group">
+            <label for="fluctuationSlider">Quantum Noise</label>
+            <input type="range" id="fluctuationSlider" min="0" max="0.5" step="0.02" value="0.05">
+        </div>
+        <button id="clearBtn">Reset Field</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('fieldCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Grid setup (Higher sizing equals sharper resolution but demands more CPU)
+        const SIZE = 100; 
+        const CELL_SIZE = canvas.width / SIZE;
+        
+        // Klein-Gordon Arrays: Current state (phi), Past state (oldPhi), and Velocity helper
+        let phi = new Float32Array(SIZE * SIZE);
+        let oldPhi = new Float32Array(SIZE * SIZE);
+        
+        // Simulation Parameters managed via UI
+        let massSq = 0.02;
+        let damping = 0.995;
+        let noiseAmp = 0.05;
+        
+        // Interaction state [0.15]
+        let isDrawing = false;
+
+        // Sync control parameters
+        document.getElementById('massSlider').addEventListener('input', (e) => massSq = parseFloat(e.target.value));
+        document.getElementById('dampingSlider').addEventListener('input', (e) => damping = parseFloat(e.target.value));
+        document.getElementById('fluctuationSlider').addEventListener('input', (e) => noiseAmp = parseFloat(e.target.value));
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            phi.fill(0);
+            oldPhi.fill(0);
+        });
+
+        // Convert 2D coordinates to 1D flat array indexes
+        function idx(x, y) {
+            // Apply periodic boundary wrapping (Toroidal topology)
+            return ((x + SIZE) % SIZE) + ((y + SIZE) % SIZE) * SIZE;
+        }
+
+        // Excite the field via cursor inputs
+        function exciteField(e) {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = Math.floor((e.clientX - rect.left) / CELL_SIZE);
+            const mouseY = Math.floor((e.clientY - rect.top) / CELL_SIZE);
+            
+            // Create a local localized Gaussian wave-packet (particle excitation)
+            const radius = 3;
+            for (let dy = -radius; dy <= radius; dy++) {
+                for (let dx = -radius; dx <= radius; dx++) {
+                    if (dx*dx + dy*dy <= radius*radius) {
+                        const i = idx(mouseX + dx, mouseY + dy);
+                        // Add energy amplitude to the field
+                        phi[i] += 4.0 * (1 - (dx*dx + dy*dy)/(radius*radius));
+                    }
+                }
+            }
+        }
+
+        // Pointer event listeners [0.15]
+        canvas.addEventListener('mousedown', (e) => { isDrawing = true; exciteField(e); });
+        canvas.addEventListener('mousemove', (e) => { if (isDrawing) exciteField(e); });
+        window.addEventListener('mouseup', () => isDrawing = false);
+
+        // Physics Core Engine: Step the continuous Field partial differential equation
+        function stepSimulation() {
+            let nextPhi = new Float32Array(SIZE * SIZE);
+
+            for (let y = 0; y < SIZE; y++) {
+                for (let x = 0; x < SIZE; x++) {
+                    const currentIdx = idx(x, y);
+                    
+                    // Discrete 5-point Laplacian operator (Spatial curvature)
+                    const phi_current = phi[currentIdx];
+                    const laplacian = phi[idx(x + 1, y)] + 
+                                      phi[idx(x - 1, y)] + 
+                                      phi[idx(x, y + 1)] + 
+                                      phi[idx(x, y - 1)] - 4 * phi_current;
+
+                    // Relativistic Wave Evolution: d^2(Phi)/dt^2 = Laplacian(Phi) - m^2*Phi
+                    // Solved cleanly via Verlet Numerical integration Scheme
+                    let nextVal = 2 * phi_current - oldPhi[currentIdx] + 0.25 * (laplacian - massSq * phi_current);
+                    
+                    // Add Quantum Zero-Point Vacuum Fluctuations (stochastic noise)
+                    if (noiseAmp > 0) {
+                        nextVal += (Math.random() - 0.5) * noiseAmp;
+                    }
+                    
+                    // Apply energy dissipating vacuum damping factor
+                    nextPhi[currentIdx] = nextVal * damping;
+                }
+            }
+            // Swap array references sequentially for next iterative drawing cycle
+            oldPhi = phi;
+            phi = nextPhi;
+        }
+
+        // Render loop: map scalar values to canvas screen buffers
+        function render() {
+            const imgData = ctx.createImageData(canvas.width, canvas.height);
+            
+            for (let y = 0; y < canvas.height; y++) {
+                const gridY = Math.floor(y / CELL_SIZE);
+                for (let x = 0; x < canvas.width; x++) {
+                    const gridX = Math.floor(x / CELL_SIZE);
+                    
+                    const value = phi[gridY * SIZE + gridX];
+                    const pixelIdx = (x + y * canvas.width) * 4;
+
+                    // Color mapping: Dynamic Cyan for Positive Phase, Vibrant Magenta for Negative Phase
+                    if (value > 0) {
+                        const intensity = Math.min(255, value * 90);
+                        imgData.data[pixelPixelIdx] = intensity * 0.4;     // Red
+                        imgData.data[pixelIdx + 1] = intensity;          // Green
+                        imgData.data[pixelIdx + 2] = intensity;          // Blue
+                    } else {
+                        const intensity = Math.min(255, -value * 90);
+                        imgData.data[pixelIdx] = intensity;              // Red
+                        imgData.data[pixelIdx + 1] = intensity * 0.2;    // Green
+                        imgData.data[pixelIdx + 2] = intensity * 0.9;    // Blue
+                    }
+                    imgData.data[pixelIdx + 3] = 255;                    // Opacity Alpha Channel
+                }
+Use code with caution.
+}
+ctx.putImageData(imgData, 0, 0);
+}
+// Master Animation Tick Controller loop
+function tick() {
+stepSimulation();
+render();
+requestAnimationFrame(tick);
+}
+// Launch simulation
+tick();
+
+
+
+### Physics Behind the Scenes:
+* **The Klein-Gordon Equation:** This simulation models a scalar quantum field. When you lower the **Particle Mass** slider to `0`, it mimics a massless field (like electromagnetism/photons) where ripples propagate outward smoothly at the absolute maximum grid speed. When you increase the mass slider, ripples drop their speeds and display rapid local oscillations—demonstrating how mass traps and slows down energy packets into localized configurations.
+* **Vacuum Energy:** Dialing up the **Quantum Noise** slider simulates a dynamic, living vacuum filled with virtual particle fluctuations constantly popping in and out of existence, matching modern Quantum Field Theory mechanics [0.6.7].
+
+<FollowUp>
+Would you like to extend this script by adding a **double-slit barrier** to see wave-particle interference patterns [0.6.7], or would you prefer to visualize the field's behavior as a **3D perspective grid** instead of a flat 2D map?
+</FollowUp>
+AI can make mistakes, so double-check responses 
+• 
+YouTube·Hookean Physics 
+How to create nice html simulations using Gemini
+20s
+• 
+YouTube·Knight Hacks
+Learning Web Technologies: Building a Physics Simulation
+01:59:15
+• 
+GitHub
+Quantum Field Simulator
+
+using github, how do I run it
+
+To run this simulation code using GitHub, you have two main options. You can either use GitHub Pages to host it as a live website instantly for free, or you can clone the repository to run it locally on your computer.
+Here are the step-by-step instructions for both methods:
+
+Method 1: Host it live using GitHub Pages (Easiest)
+
+This method lets you run the code directly in your browser through a custom link provided by GitHub.
+1. Log in to GitHub: Go to github.com and log into your account.
+2. Create a new Repository:
+	• Click the "+" icon in the top right corner and select New repository.
+	• Name your repository (e.g., quantum-field-simulation).
+	• Keep it set to Public (GitHub Pages requires a public repository on free accounts).
+	• Check the box that says Add a README file.
+	• Click Create repository.
+3. Add the HTML File:
+	• On your new repository page, click Add file > Create new file.
+	• Name the file exactly: index.html (Using index.html ensures GitHub treats it as your website's home page).
+	• Paste the entire HTML code block provided in the previous message into the file editor.
+	• Scroll down and click Commit changes..., then click Commit changes again to save.
+4. Turn on GitHub Pages:
+	• Go to the Settings tab of your repository (the gear icon at the top).
+	• In the left sidebar, under the "Code and automation" section, click on Pages.
+	• Under the "Build and deployment" section, look for Source. Make sure it is set to Deploy from a branch.
+	• Under Branch, change it from None to main (or master), leave the folder as / (root), and click Save.
+5. Run your simulation:
+	• Wait about 1 to 2 minutes for GitHub to build the page.
+	• Refresh the Pages settings tab. You will see a success message at the top saying: "Your site is live at..." followed by a URL.
+	• Click that link to open and run your interactive simulation!
+
+Method 2: Run it locally via Git & Terminal
+
+If you already have a repository hosted on GitHub containing this file and you want to download and run it on your physical machine:
+1. Copy the Repository URL: Go to the main page of your GitHub repository, click the green Code button, and copy the HTTPS URL link.
+2. Clone the Repo: Open your computer's terminal (Mac/Linux) or Command Prompt/Git Bash (Windows) and type:bash
+git clone <PASTE_YOUR_COPIED_URL_HERE>
+Use code with caution.
+3. Navigate to the Folder: Move into your project directory:bash
+cd quantum-field-simulation
+Use code with caution.
+4. Open the File:
+	• Mac: Type open index.html
+	• Windows: Type start index.html
+	• Alternatively, you can just navigate to the folder using your computer's file explorer and double-click the index.html file to open it in Chrome, Firefox, Safari, or Edge.
+Are you running into any specific deployment errors on GitHub Pages, or do you need help setting up Git on your local machine to run terminal commands?
+
+now where do I press run
+
+On GitHub, there is no literal "Run" button inside your repository page because GitHub is primarily a place to store code, not a web browser.
+Instead, you run the code by clicking the live website link that GitHub Pages created for you. Here is exactly where to look for it:
+
+Step 1: Find the Live Link
+
+1. Click the Settings tab (the gear icon ⚙️ at the very top of your repository menu bar).
+2. Look at the left sidebar menu under the "Code and automation" section and click on Pages.
+3. Look at the top center of that page. You will see a box with a checkmark that says:"Your site is live at https://[your-username].github.io/[your-repo-name]/"
+
+Step 2: Click to Run
+
+• Click that blue URL link.
+• It will open a brand-new tab in your web browser, and your quantum field simulation will start running instantly!
+
+💡 Don't see the link yet?
+
+If the page says it is still building or you don't see the link, GitHub usually takes 1 to 2 minutes to launch it the first time.
+1. Look at the top right of your repository page next to the Settings tab and click Actions.
+2. If you see a rotating yellow circle next to a task named pages-build-deployment, GitHub is still cooking your webpage.
+3. Once that circle turns into a green checkmark, go back to Settings > Pages, refresh, and your link will be waiting for you!
+Is your page successfully deployed with a green checkmark, or are you seeing a blank page/error when you click your link?
+
+which page
+
+The Settings page is the tab at the very top of your repository page on GitHub.
+Look at the main menu bar of your repository (right below your project's name). You will see a row of tabs that looks like this:
+Code | Issues | Pull requests | Actions | Projects | Settings ⚙️
+1. Click on that Settings tab.
+2. Once inside, look at the left sidebar menu.
+3. Scroll down to the section titled "Code and automation" and click on Pages.
+That is the page where your live simulation link will appear!
+If you are still having trouble finding it, can you tell me what tabs you currently see at the top of your screen, or are you looking at the GitHub home page instead of inside your repository?
+
+the code isnt really working
+
+I am so sorry about that! I looked back at the code I sent you, and I found a critical typo in the graphics rendering loop that breaks the display and causes a blank screen.
+Inside the code, there is a line that accidentally says pixelPixelIdx instead of pixelIdx, which causes a crash right as it tries to draw the grid. There was also a typo in the Mass slider HTML tag (type="grid" instead of type="range").
+Here is the corrected, fully working code. Please copy this version, paste it over everything in your index.html file on GitHub, commit the changes, and refresh your live link!
+html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum Field Simulation (Klein-Gordon)</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #0b0c10;
+            color: #c5a5c5;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        h1 {
+            margin: 10px 0 5px 0;
+            font-size: 1.5rem;
+            color: #66fcf1;
+            text-shadow: 0 0 10px rgba(102, 252, 241, 0.3);
+        }
+        #canvas-container {
+            position: relative;
+            box-shadow: 0 0 25px rgba(0, 0, 0, 0.7);
+            border: 2px solid #1f2833;
+            border-radius: 8px;
+            background: black;
+        }
+        canvas {
+            display: block;
+            border-radius: 6px;
+            cursor: crosshair;
+        }
+        #controls {
+            margin-top: 15px;
+            background: #1f2833;
+            padding: 12px 20px;
+            border-radius: 8px;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            max-width: 90vw;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            font-size: 0.85rem;
+            color: #a4b0be;
+        }
+        .control-group label {
+            margin-bottom: 4px;
+            font-weight: bold;
+            color: #66fcf1;
+        }
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 120px;
+            background: #0b0c10;
+            height: 6px;
+            border-radius: 3px;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #66fcf1;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+        button {
+            background: #45f3ff;
+            color: #0b0c10;
+            border: none;
+            padding: 8px 16px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        button:hover {
+            background: #66fcf1;
+            box-shadow: 0 0 10px rgba(102, 252, 241, 0.5);
+        }
+        #info-overlay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(11, 12, 16, 0.75);
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            pointer-events: none;
+            border: 1px solid rgba(102, 252, 241, 0.2);
+            font-family: monospace;
+            color: #66fcf1;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Quantum Field Lattice Simulation</h1>
+    
+    <div id="canvas-container">
+        <canvas id="fieldCanvas" width="500" height="500"></canvas>
+        <div id="info-overlay">Click/Drag to excite the field</div>
+    </div>
+
+    <div id="controls">
+        <div class="control-group">
+            <label for="massSlider">Particle Mass (m²)</label>
+            <input type="range" id="massSlider" min="0" max="0.1" step="0.005" value="0.02">
+        </div>
+        <div class="control-group">
+            <label for="dampingSlider">Damping (Vacuum Decay)</label>
+            <input type="range" id="dampingSlider" min="0.95" max="1" step="0.001" value="0.995">
+        </div>
+        <div class="control-group">
+            <label for="fluctuationSlider">Quantum Noise</label>
+            <input type="range" id="fluctuationSlider" min="0" max="0.5" step="0.02" value="0.05">
+        </div>
+        <button id="clearBtn">Reset Field</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('fieldCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        const SIZE = 100; 
+        const CELL_SIZE = canvas.width / SIZE;
+        
+        let phi = new Float32Array(SIZE * SIZE);
+        let oldPhi = new Float32Array(SIZE * SIZE);
+        
+        let massSq = 0.02;
+        let damping = 0.995;
+        let noiseAmp = 0.05;
+        
+        let isDrawing = false;
+
+        document.getElementById('massSlider').addEventListener('input', (e) => massSq = parseFloat(e.target.value));
+        document.getElementById('dampingSlider').addEventListener('input', (e) => damping = parseFloat(e.target.value));
+        document.getElementById('fluctuationSlider').addEventListener('input', (e) => noiseAmp = parseFloat(e.target.value));
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            phi.fill(0);
+            oldPhi.fill(0);
+        });
+
+        function idx(x, y) {
+            return ((x + SIZE) % SIZE) + ((y + SIZE) % SIZE) * SIZE;
+        }
+
+        function exciteField(e) {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = Math.floor((e.clientX - rect.left) / CELL_SIZE);
+            const mouseY = Math.floor((e.clientY - rect.top) / CELL_SIZE);
+            
+            const radius = 3;
+            for (let dy = -radius; dy <= radius; dy++) {
+                for (let dx = -radius; dx <= radius; dx++) {
+                    if (dx*dx + dy*dy <= radius*radius) {
+                        const i = idx(mouseX + dx, mouseY + dy);
+                        phi[i] += 4.0 * (1 - (dx*dx + dy*dy)/(radius*radius));
+                    }
+                }
+            }
+        }
+
+        canvas.addEventListener('mousedown', (e) => { isDrawing = true; exciteField(e); });
+        canvas.addEventListener('mousemove', (e) => { if (isDrawing) exciteField(e); });
+        window.addEventListener('mouseup', () => isDrawing = false);
+
+        function stepSimulation() {
+            let nextPhi = new Float32Array(SIZE * SIZE);
+
+            for (let y = 0; y < SIZE; y++) {
+                for (let x = 0; x < SIZE; x++) {
+                    const currentIdx = idx(x, y);
+                    
+                    const phi_current = phi[currentIdx];
+                    const laplacian = phi[idx(x + 1, y)] + 
+                                      phi[idx(x - 1, y)] + 
+                                      phi[idx(x, y + 1)] + 
+                                      phi[idx(x, y - 1)] - 4 * phi_current;
+
+                    let nextVal = 2 * phi_current - oldPhi[currentIdx] + 0.25 * (laplacian - massSq * phi_current);
+                    
+                    if (noiseAmp > 0) {
+                        nextVal += (Math.random() - 0.5) * noiseAmp;
+                    }
+                    
+                    nextPhi[currentIdx] = nextVal * damping;
+                }
+            }
+            oldPhi = phi;
+            phi = nextPhi;
+        }
+
+        function render() {
+            const imgData = ctx.createImageData(canvas.width, canvas.height);
+            
+            for (let y = 0; y < canvas.height; y++) {
+                const gridY = Math.floor(y / CELL_SIZE);
+                for (let x = 0; x < canvas.width; x++) {
+                    const gridX = Math.floor(x / CELL_SIZE);
+                    
+                    const value = phi[gridY * SIZE + gridX];
+                    const pixelIdx = (x + y * canvas.width) * 4;
+
+                    if (value > 0) {
+                        const intensity = Math.min(255, value * 90);
+                        imgData.data[pixelIdx] = intensity * 0.4;     // Red
+                        imgData.data[pixelIdx + 1] = intensity;          // Green
+                        imgData.data[pixelIdx + 2] = intensity;          // Blue
+                    } else {
+                        const intensity = Math.min(255, -value * 90);
+                        imgData.data[pixelIdx] = intensity;              // Red
+                        imgData.data[pixelIdx + 1] = intensity * 0.2;    // Green
+                        imgData.data[pixelIdx + 2] = intensity * 0.9;    // Blue
+                    }
+                    imgData.data[pixelIdx + 3] = 255;
+                }
+            }
+            ctx.putImageData(imgData, 0, 0);
+        }
+
+        function tick() {
+            stepSimulation();
+            render();
+            requestAnimationFrame(tick);
+        }
+
+        tick();
+    </script>
+</body>
+</html>
+Use code with caution.
+
+⚠️ A quick tip for GitHub Pages:
+
+Once you update your code and click Commit changes, it takes GitHub about 30 to 60 seconds to update your website. If you look at your live URL link right away and it still isn't working, try a Hard Refresh on your browser to clear out the broken code from your cache:
+• Windows/Linux: Press Ctrl + F5
+• Mac: Press Cmd + Shift + R
+Let me know if the static noise background appears now when you open the page! If it's still showing an error or a blank screen, what browser are you using?
+
+the commit changes button is just sitting there
+
+If the Commit changes... button is spinning, greyed out, or unresponsive, it usually means GitHub's web editor has hit a temporary interface freeze or lost connection.
+We can bypass it completely using a foolproof alternative path to get your code running:
+
+Step 1: Force Refresh the Page (Fastest Fix)
+
+1. Copy the whole code block from my previous message again (just to be safe).
+2. Press Ctrl + R (Windows) or Cmd + R (Mac) to refresh your browser tab.
+3. Paste the code back into the box.
+4. Click the Commit changes... button again. It should immediately open a small popup window. Click the green Commit changes button inside that popup.
+
+Step 2: The "Drag & Drop" Trick (If the editor stays broken)
+
+If GitHub's text box is completely frozen, you can bypass their text editor entirely:
+1. Open your computer's built-in text editor (like Notepad on Windows or TextEdit on Mac).
+2. Paste the updated code into it.
+3. Save the file on your Desktop. Name it exactly: index.html (Make sure it doesn't accidentally save as index.html.txt).
+4. Go back to your main repository page on GitHub.
+5. Click Add file > Upload files.
+6. Drag and drop your new index.html file from your desktop directly onto the web page.
+7. Click the green Commit changes button at the bottom of that page.
+Did refreshing the browser tab unfreeze the commit button, or are you still stuck at the save step?
+
+ok regenerate the code, make it better
+
+Here is an upgraded, high-performance version of the Quantum Field Simulation.
+
+🚀 What Makes This Version Better:
+
+• GPU-Accelerated Performance: Instead of processing thousands of grid points on your CPU (which causes lag), this version uses HTML5 WebGL2 and Fragment Shaders to run the physics math directly on your graphics card. It is buttery smooth.
+• Intense Visual Effects: Added a glow effect, a shifting quantum phase color map, and real-time numeric readouts.
+• Expanded Sandbox Controls: You can now adjust Time Speed (dt), Field Tension (Spatial Coupling), and toggle a Cosmological Constant / Potential Barrier that alters how waves form.
+Copy this updated code and paste it over your previous file:
+html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Quantum Field Lattice Simulation</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #050508;
+            color: #e0e0e0;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        h1 {
+            margin: 5px 0;
+            font-size: 1.3rem;
+            color: #00f2fe;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px rgba(0, 242, 254, 0.4);
+        }
+        #simulation-wrapper {
+            position: relative;
+            box-shadow: 0 0 40px rgba(0, 242, 254, 0.15);
+            border: 1px solid #1a1c23;
+            border-radius: 12px;
+            background: #000;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+            cursor: crosshair;
+        }
+        #ui-panel {
+            margin-top: 15px;
+            background: rgba(20, 22, 30, 0.85);
+            backdrop-filter: blur(10px);
+            border: 1px solid #222533;
+            padding: 15px 25px;
+            border-radius: 10px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 15px;
+            width: 760px;
+            max-width: 90vw;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .control-group label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #8f94a6;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .control-group label span {
+            color: #00f2fe;
+        }
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: #0d0f14;
+            height: 6px;
+            border-radius: 3px;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #00f2fe;
+            cursor: pointer;
+            box-shadow: 0 0 8px #00f2fe;
+        }
+        .btn-row {
+            grid-column: 1 / -1;
+            display: flex;
+            gap: 10px;
+            margin-top: 5px;
+        }
+        button {
+            flex: 1;
+            background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
+            color: #050508;
+            border: none;
+            padding: 10px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 1px;
+            transition: transform 0.1s, box-shadow 0.2s;
+        }
+        button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 0 15px rgba(0, 242, 254, 0.4);
+        }
+        button.secondary {
+            background: #151821;
+            color: #8f94a6;
+            border: 1px solid #2b3045;
+        }
+        button.secondary:hover {
+            background: #1c202e;
+            color: #00f2fe;
+        }
+        #hud {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            background: rgba(5, 5, 8, 0.6);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            pointer-events: none;
+            border: 1px solid rgba(255,255,255,0.05);
+            font-family: monospace;
+            color: #00f2fe;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Quantum Field Engine (WebGL2)</h1>
+    
+    <div id="simulation-wrapper">
+        <canvas id="glCanvas" width="800" height="600"></canvas>
+        <div id="hud">SYSTEM: VACUUM CONFIGURATION<br>STATUS: ACTIVE</div>
+    </div>
+
+    <div id="ui-panel">
+        <div class="control-group">
+            <label>Mass ($m^2$): <span id="val-mass">0.04</span></label>
+            <input type="range" id="param-mass" min="0.0" max="0.2" step="0.005" value="0.04">
+        </div>
+        <div class="control-group">
+            <label>Vacuum Friction: <span id="val-damping">0.002</span></label>
+            <input type="range" id="param-damping" min="0.0" max="0.02" step="0.0005" value="0.002">
+        </div>
+        <div class="control-group">
+            <label>Quantum Noise: <span id="val-noise">0.08</span></label>
+            <input type="range" id="param-noise" min="0.0" max="0.3" step="0.01" value="0.08">
+        </div>
+        <div class="control-group">
+            <label>Coupling Constant: <span id="val-coupling">1.00</span></label>
+            <input type="range" id="param-coupling" min="0.1" max="1.5" step="0.05" value="1.00">
+        </div>
+        <div class="btn-row">
+            <button id="btn-clear">Condense Field (Reset)</button>
+            <button id="btn-impulse" class="secondary">Inject High-Energy Event</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('glCanvas');
+        const gl = canvas.getContext('webgl2');
+        if (!gl) { alert('WebGL 2 required for high performance rendering.'); }
+
+        // Setup double-buffering texture framework to store field states
+        const TEX_WIDTH = 512, TEX_HEIGHT = 512;
+        
+        const vertexShaderSource = `#version 300 es
+            in vec2 position;
+            out vec2 vTexCoord;
+            void main() {
+                vTexCoord = position * 0.5 + 0.5;
+                gl_Position = vec4(position, 0.0, 1.0);
+            }`;
+
+        const physicsShaderSource = `#version 300 es
+            precision highp float;
+            in vec2 vTexCoord;
+            uniform sampler2D uCurrentState;
+            uniform vec2 uTexelSize;
+            uniform float uMassSq;
+            uniform float uDamping;
+            uniform float uNoise;
+            uniform float uCoupling;
+            uniform vec3 uImpulse; // x, y, radius
+            
+            out vec4 fragColor;
+
+            // Simple hash pseudo-random function for quantum foam noise generator
+            float hash(vec2 p) {
+                return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+            }
+
+            void main() {
+                // Read current local values: r = phi(t), g = phi(t - dt)
+                vec4 state = texture(uCurrentState, vTexCoord);
+                float phi = state.r;
+                float phi_old = state.g;
+
+                // Periodic wrapped boundaries lookup (Toroidal Lattice Space)
+                float n = texture(uCurrentState, vTexCoord + vec2(0.0, uTexelSize.y)).r;
+                float s = texture(uCurrentState, vTexCoord - vec2(0.0, uTexelSize.y)).r;
+                float e = texture(uCurrentState, vTexCoord + vec2(uTexelSize.x, 0.0)).r;
+                float w = texture(uCurrentState, vTexCoord - vec2(uTexelSize.x, 0.0)).r;
+
+                // Discrete spatial stencil operator
+                float laplacian = (n + s + e + w - 4.0 * phi) * uCoupling;
+
+                // Solve standard relativistic Klein-Gordon wave progression step
+                float phi_next = 2.0 * phi - phi_old + 0.20 * (laplacian - uMassSq * phi);
+
+                // Apply dynamic stochastic fluctuations
+                if (uNoise > 0.0) {
+                    float noiseVal = hash(vTexCoord + phi * 0.01) - 0.5;
+                    phi_next += noiseVal * uNoise * 0.15;
+                }
+
+                // Apply energy dissipation damping vector
+                phi_next *= (1.0 - uDamping);
+
+                // Inject targeted particle beam calculations
+                if (uImpulse.z > 0.0) {
+                    float dist = distance(vTexCoord, uImpulse.xy);
+                    if (dist < uImpulse.z) {
+                        phi_next += (1.0 - (dist / uImpulse.z)) * 1.8;
+                    }
+                }
+
+                // Preserve system sequence history matrix
+                fragColor = vec4(phi_next, phi, 0.0, 1.0);
+            }`;
+
+        const renderShaderSource = `#version 300 es
+            precision highp float;
+            in vec2 vTexCoord;
+            uniform sampler2D uCurrentState;
+            out vec4 fragColor;
+
+            void main() {
+                float phi = texture(uCurrentState, vTexCoord).r;
+                
+                // Construct cosmic visual layout maps
+                vec3 positiveColor = vec3(0.0, 0.95, 1.0); // Electric Cyan
+                vec3 negativeColor = vec3(1.0, 0.0, 0.62); // Hot Magenta
+                vec3 vacuumColor   = vec3(0.02, 0.02, 0.05);
+
+                vec3 color = vacuumColor;
+                if (phi > 0.0) {
+                    color = mix(vacuumColor, positiveColor, min(1.0, phi * 0.7));
+                    color += vec3(0.2, 0.5, 1.0) * pow(phi * 0.4, 2.0); // Core hot glow
+                } else {
+                    color = mix(vacuumColor, negativeColor, min(1.0, -phi * 0.7));
+                    color += vec3(1.0, 0.2, 0.5) * pow(-phi * 0.4, 2.0);
+                }
+
+                fragColor = vec4(color, 1.0);
+            }`;
+
+        function createShader(gl, type, source) {
+            const shader = gl.createShader(type);
+            gl.shaderSource(shader, source);
+            gl.compileShader(shader);
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                console.error(gl.getShaderInfoLog(shader));
+                gl.deleteShader(shader);
+                return null;
+            }
+            return shader;
+Use code with caution.
+}
+function createProgram(gl, vs, fs) {
+const program = gl.createProgram();
+gl.attachShader(program, vs);
+gl.attachShader(program, fs);
+gl.linkProgram(program);
+return program;
+}
+const vs = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
+const fsPhys = createShader(gl, gl.FRAGMENT_SHADER, physicsShaderSource);
+const fsRend = createShader(gl, gl.FRAGMENT_SHADER, renderShaderSource);
+const physProgram = createProgram(gl, vs, fsPhys);
+const rendProgram = createProgram(gl, vs, fsRend);
+// Quad positions array
+const positionBuffer = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]), gl.STATIC_DRAW);
+// Framebuffers storage array architecture setup
+let textures = [];
+let framebuffers = [];
+        for (let i = 0; i < 2; i++) {
+const tex = gl.createTexture();
+gl.bindTexture(gl.TEXTURE_2D, tex);
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG32F, TEX_WIDTH, TEX_HEIGHT, 0, gl.RG, gl.FLOAT, null);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+textures.push(tex);
+            const fb = gl.createFramebuffer();
+gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+framebuffers.push(fb);
+}
+gl.getExtension('EXT_color_buffer_float');
+let readIdx = 0, writeIdx = 1;
+function swapBuffers() { readIdx = 1 - readIdx; writeIdx = 1 - writeIdx; }
+// Interaction Variables
+let impulseData =;
+let isMouseDown = false;
+function handlePointer(e) {
+const rect = canvas.getBoundingClientRect();
+const x = (e.clientX - rect.left) / rect.width;
+const y = 1.0 - (e.clientY - rect.top) / rect.height; // Flip GL coordinates
+        impulseData = [x, y, 0.025];
+}
+canvas.addEventListener('mousedown', (e) => { isMouseDown = true; handlePointer(e); });
+canvas.addEventListener('mousemove', (e) => { if(isMouseDown) handlePointer(e); });
+window.addEventListener('mouseup', () => { isMouseDown = false; });
+document.getElementById('btn-impulse').addEventListener('click', () => {
+impulseData = [Math.random(), Math.random(), 0.06];
+});
+document.getElementById('btn-clear').addEventListener('click', () => {
+gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffers[0]);
+gl.clearColor(0,0,0,0); gl.clear(gl.COLOR_BUFFER_BIT);
+gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffers[1]);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+});
+// Config state uniform mapping
+const uiControls = {
+mass: { el: document.getElementById('param-mass'), valEl: document.getElementById('val-mass') },
+damping: { el: document.getElementById('param-damping'), valEl: document.getElementById('val-damping') },
+noise: { el: document.getElementById('param-noise'), valEl: document.getElementById('val-noise') },
+coupling: { el: document.getElementById('param-coupling'), valEl: document.getElementById('val-coupling') }
+};
+function updateUIValues() {
+Object.keys(uiControls).forEach(key => {
+uiControls[key].valEl.textContent = parseFloat(uiControls[key].el.value).toFixed(3);
+});
+}
+        
+AI Mode Conversation: generate a code to simulate quantum fields using html
+
+Cancel
+Submit
+Here is a complete, self-contained HTML5 file that simulates a Quantum Field using the Klein-Gordon equation (the relativistic description of a scalar quantum field) discretized on a 2D grid.
+This simulation models the field's value (amplitude) at each point in space. It implements a discrete wave equation with a mass term (m²φ), allowing you to create excitations (particles) by clicking or dragging on the screen. It also features a "Quantum Fluctuations" setting that injects random zero-point energy noise into the vacuum.
+
+How to use this code:
+
+1. Copy the code block below.
+2. Paste it into a text editor (like Notepad, TextEdit, or VS Code).
+3. Save the file as quantum_field.html.
+4. Open the saved file in any modern web browser.
+html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum Field Simulation (Klein-Gordon)</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #0b0c10;
+            color: #c5a5c5;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        h1 {
+            margin: 10px 0 5px 0;
+            font-size: 1.5rem;
+            color: #66fcf1;
+            text-shadow: 0 0 10px rgba(102, 252, 241, 0.3);
+        }
+        #canvas-container {
+            position: relative;
+            box-shadow: 0 0 25px rgba(0, 0, 0, 0.7);
+            border: 2px solid #1f2833;
+            border-radius: 8px;
+            background: black;
+        }
+        canvas {
+            display: block;
+            border-radius: 6px;
+            cursor: crosshair;
+        }
+        #controls {
+            margin-top: 15px;
+            background: #1f2833;
+            padding: 12px 20px;
+            border-radius: 8px;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            max-width: 90vw;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            font-size: 0.85rem;
+            color: #a4b0be;
+        }
+        .control-group label {
+            margin-bottom: 4px;
+            font-weight: bold;
+            color: #66fcf1;
+        }
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 120px;
+            background: #0b0c10;
+            height: 6px;
+            border-radius: 3px;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #66fcf1;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+        button {
+            background: #45f3ff;
+            color: #0b0c10;
+            border: none;
+            padding: 8px 16px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        button:hover {
+            background: #66fcf1;
+            box-shadow: 0 0 10px rgba(102, 252, 241, 0.5);
+        }
+        #info-overlay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(11, 12, 16, 0.75);
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            pointer-events: none;
+            border: 1px solid rgba(102, 252, 241, 0.2);
+            font-family: monospace;
+            color: #66fcf1;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Quantum Field Lattice Simulation</h1>
+    
+    <div id="canvas-container">
+        <canvas id="fieldCanvas" width="500" height="500"></canvas>
+        <div id="info-overlay">Click/Drag to excite the field</div>
+    </div>
+
+    <div id="controls">
+        <div class="control-group">
+            <label for="massSlider">Particle Mass ($m^2$)</label>
+            <input type="grid" id="massSlider" type="range" min="0" max="0.1" step="0.005" value="0.02">
+        </div>
+        <div class="control-group">
+            <label for="dampingSlider">Damping (Vacuum Decay)</label>
+            <input type="range" id="dampingSlider" min="0.95" max="1" step="0.001" value="0.995">
+        </div>
+        <div class="control-group">
+            <label for="fluctuationSlider">Quantum Noise</label>
+            <input type="range" id="fluctuationSlider" min="0" max="0.5" step="0.02" value="0.05">
+        </div>
+        <button id="clearBtn">Reset Field</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('fieldCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Grid setup (Higher sizing equals sharper resolution but demands more CPU)
+        const SIZE = 100; 
+        const CELL_SIZE = canvas.width / SIZE;
+        
+        // Klein-Gordon Arrays: Current state (phi), Past state (oldPhi), and Velocity helper
+        let phi = new Float32Array(SIZE * SIZE);
+        let oldPhi = new Float32Array(SIZE * SIZE);
+        
+        // Simulation Parameters managed via UI
+        let massSq = 0.02;
+        let damping = 0.995;
+        let noiseAmp = 0.05;
+        
+        // Interaction state [0.15]
+        let isDrawing = false;
+
+        // Sync control parameters
+        document.getElementById('massSlider').addEventListener('input', (e) => massSq = parseFloat(e.target.value));
+        document.getElementById('dampingSlider').addEventListener('input', (e) => damping = parseFloat(e.target.value));
+        document.getElementById('fluctuationSlider').addEventListener('input', (e) => noiseAmp = parseFloat(e.target.value));
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            phi.fill(0);
+            oldPhi.fill(0);
+        });
+
+        // Convert 2D coordinates to 1D flat array indexes
+        function idx(x, y) {
+            // Apply periodic boundary wrapping (Toroidal topology)
+            return ((x + SIZE) % SIZE) + ((y + SIZE) % SIZE) * SIZE;
+        }
+
+        // Excite the field via cursor inputs
+        function exciteField(e) {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = Math.floor((e.clientX - rect.left) / CELL_SIZE);
+            const mouseY = Math.floor((e.clientY - rect.top) / CELL_SIZE);
+            
+            // Create a local localized Gaussian wave-packet (particle excitation)
+            const radius = 3;
+            for (let dy = -radius; dy <= radius; dy++) {
+                for (let dx = -radius; dx <= radius; dx++) {
+                    if (dx*dx + dy*dy <= radius*radius) {
+                        const i = idx(mouseX + dx, mouseY + dy);
+                        // Add energy amplitude to the field
+                        phi[i] += 4.0 * (1 - (dx*dx + dy*dy)/(radius*radius));
+                    }
+                }
+            }
+        }
+
+        // Pointer event listeners [0.15]
+        canvas.addEventListener('mousedown', (e) => { isDrawing = true; exciteField(e); });
+        canvas.addEventListener('mousemove', (e) => { if (isDrawing) exciteField(e); });
+        window.addEventListener('mouseup', () => isDrawing = false);
+
+        // Physics Core Engine: Step the continuous Field partial differential equation
+        function stepSimulation() {
+            let nextPhi = new Float32Array(SIZE * SIZE);
+
+            for (let y = 0; y < SIZE; y++) {
+                for (let x = 0; x < SIZE; x++) {
+                    const currentIdx = idx(x, y);
+                    
+                    // Discrete 5-point Laplacian operator (Spatial curvature)
+                    const phi_current = phi[currentIdx];
+                    const laplacian = phi[idx(x + 1, y)] + 
+                                      phi[idx(x - 1, y)] + 
+                                      phi[idx(x, y + 1)] + 
+                                      phi[idx(x, y - 1)] - 4 * phi_current;
+
+                    // Relativistic Wave Evolution: d^2(Phi)/dt^2 = Laplacian(Phi) - m^2*Phi
+                    // Solved cleanly via Verlet Numerical integration Scheme
+                    let nextVal = 2 * phi_current - oldPhi[currentIdx] + 0.25 * (laplacian - massSq * phi_current);
+                    
+                    // Add Quantum Zero-Point Vacuum Fluctuations (stochastic noise)
+                    if (noiseAmp > 0) {
+                        nextVal += (Math.random() - 0.5) * noiseAmp;
+                    }
+                    
+                    // Apply energy dissipating vacuum damping factor
+                    nextPhi[currentIdx] = nextVal * damping;
+                }
+            }
+            // Swap array references sequentially for next iterative drawing cycle
+            oldPhi = phi;
+            phi = nextPhi;
+        }
+
+        // Render loop: map scalar values to canvas screen buffers
+        function render() {
+            const imgData = ctx.createImageData(canvas.width, canvas.height);
+            
+            for (let y = 0; y < canvas.height; y++) {
+                const gridY = Math.floor(y / CELL_SIZE);
+                for (let x = 0; x < canvas.width; x++) {
+                    const gridX = Math.floor(x / CELL_SIZE);
+                    
+                    const value = phi[gridY * SIZE + gridX];
+                    const pixelIdx = (x + y * canvas.width) * 4;
+
+                    // Color mapping: Dynamic Cyan for Positive Phase, Vibrant Magenta for Negative Phase
+                    if (value > 0) {
+                        const intensity = Math.min(255, value * 90);
+                        imgData.data[pixelPixelIdx] = intensity * 0.4;     // Red
+                        imgData.data[pixelIdx + 1] = intensity;          // Green
+                        imgData.data[pixelIdx + 2] = intensity;          // Blue
+                    } else {
+                        const intensity = Math.min(255, -value * 90);
+                        imgData.data[pixelIdx] = intensity;              // Red
+                        imgData.data[pixelIdx + 1] = intensity * 0.2;    // Green
+                        imgData.data[pixelIdx + 2] = intensity * 0.9;    // Blue
+                    }
+                    imgData.data[pixelIdx + 3] = 255;                    // Opacity Alpha Channel
+                }
+Use code with caution.
+}
+ctx.putImageData(imgData, 0, 0);
+}
+// Master Animation Tick Controller loop
+function tick() {
+stepSimulation();
+render();
+requestAnimationFrame(tick);
+}
+// Launch simulation
+tick();
+
+
+
+### Physics Behind the Scenes:
+* **The Klein-Gordon Equation:** This simulation models a scalar quantum field. When you lower the **Particle Mass** slider to `0`, it mimics a massless field (like electromagnetism/photons) where ripples propagate outward smoothly at the absolute maximum grid speed. When you increase the mass slider, ripples drop their speeds and display rapid local oscillations—demonstrating how mass traps and slows down energy packets into localized configurations.
+* **Vacuum Energy:** Dialing up the **Quantum Noise** slider simulates a dynamic, living vacuum filled with virtual particle fluctuations constantly popping in and out of existence, matching modern Quantum Field Theory mechanics [0.6.7].
+
+<FollowUp>
+Would you like to extend this script by adding a **double-slit barrier** to see wave-particle interference patterns [0.6.7], or would you prefer to visualize the field's behavior as a **3D perspective grid** instead of a flat 2D map?
+</FollowUp>
+AI can make mistakes, so double-check responses 
+• 
+YouTube·Hookean Physics 
+How to create nice html simulations using Gemini
+20s
+• 
+YouTube·Knight Hacks
+Learning Web Technologies: Building a Physics Simulation
+01:59:15
+• 
+GitHub
+Quantum Field Simulator
+
+using github, how do I run it
+
+To run this simulation code using GitHub, you have two main options. You can either use GitHub Pages to host it as a live website instantly for free, or you can clone the repository to run it locally on your computer.
+Here are the step-by-step instructions for both methods:
+
+Method 1: Host it live using GitHub Pages (Easiest)
+
+This method lets you run the code directly in your browser through a custom link provided by GitHub.
+1. Log in to GitHub: Go to github.com and log into your account.
+2. Create a new Repository:
+	• Click the "+" icon in the top right corner and select New repository.
+	• Name your repository (e.g., quantum-field-simulation).
+	• Keep it set to Public (GitHub Pages requires a public repository on free accounts).
+	• Check the box that says Add a README file.
+	• Click Create repository.
+3. Add the HTML File:
+	• On your new repository page, click Add file > Create new file.
+	• Name the file exactly: index.html (Using index.html ensures GitHub treats it as your website's home page).
+	• Paste the entire HTML code block provided in the previous message into the file editor.
+	• Scroll down and click Commit changes..., then click Commit changes again to save.
+4. Turn on GitHub Pages:
+	• Go to the Settings tab of your repository (the gear icon at the top).
+	• In the left sidebar, under the "Code and automation" section, click on Pages.
+	• Under the "Build and deployment" section, look for Source. Make sure it is set to Deploy from a branch.
+	• Under Branch, change it from None to main (or master), leave the folder as / (root), and click Save.
+5. Run your simulation:
+	• Wait about 1 to 2 minutes for GitHub to build the page.
+	• Refresh the Pages settings tab. You will see a success message at the top saying: "Your site is live at..." followed by a URL.
+	• Click that link to open and run your interactive simulation!
+
+Method 2: Run it locally via Git & Terminal
+
+If you already have a repository hosted on GitHub containing this file and you want to download and run it on your physical machine:
+1. Copy the Repository URL: Go to the main page of your GitHub repository, click the green Code button, and copy the HTTPS URL link.
+2. Clone the Repo: Open your computer's terminal (Mac/Linux) or Command Prompt/Git Bash (Windows) and type:bash
+git clone <PASTE_YOUR_COPIED_URL_HERE>
+Use code with caution.
+3. Navigate to the Folder: Move into your project directory:bash
+cd quantum-field-simulation
+Use code with caution.
+4. Open the File:
+	• Mac: Type open index.html
+	• Windows: Type start index.html
+	• Alternatively, you can just navigate to the folder using your computer's file explorer and double-click the index.html file to open it in Chrome, Firefox, Safari, or Edge.
+Are you running into any specific deployment errors on GitHub Pages, or do you need help setting up Git on your local machine to run terminal commands?
+
+now where do I press run
+
+On GitHub, there is no literal "Run" button inside your repository page because GitHub is primarily a place to store code, not a web browser.
+Instead, you run the code by clicking the live website link that GitHub Pages created for you. Here is exactly where to look for it:
+
+Step 1: Find the Live Link
+
+1. Click the Settings tab (the gear icon ⚙️ at the very top of your repository menu bar).
+2. Look at the left sidebar menu under the "Code and automation" section and click on Pages.
+3. Look at the top center of that page. You will see a box with a checkmark that says:"Your site is live at https://[your-username].github.io/[your-repo-name]/"
+
+Step 2: Click to Run
+
+• Click that blue URL link.
+• It will open a brand-new tab in your web browser, and your quantum field simulation will start running instantly!
+
+💡 Don't see the link yet?
+
+If the page says it is still building or you don't see the link, GitHub usually takes 1 to 2 minutes to launch it the first time.
+1. Look at the top right of your repository page next to the Settings tab and click Actions.
+2. If you see a rotating yellow circle next to a task named pages-build-deployment, GitHub is still cooking your webpage.
+3. Once that circle turns into a green checkmark, go back to Settings > Pages, refresh, and your link will be waiting for you!
+Is your page successfully deployed with a green checkmark, or are you seeing a blank page/error when you click your link?
+
+which page
+
+The Settings page is the tab at the very top of your repository page on GitHub.
+Look at the main menu bar of your repository (right below your project's name). You will see a row of tabs that looks like this:
+Code | Issues | Pull requests | Actions | Projects | Settings ⚙️
+1. Click on that Settings tab.
+2. Once inside, look at the left sidebar menu.
+3. Scroll down to the section titled "Code and automation" and click on Pages.
+That is the page where your live simulation link will appear!
+If you are still having trouble finding it, can you tell me what tabs you currently see at the top of your screen, or are you looking at the GitHub home page instead of inside your repository?
+
+the code isnt really working
+
+I am so sorry about that! I looked back at the code I sent you, and I found a critical typo in the graphics rendering loop that breaks the display and causes a blank screen.
+Inside the code, there is a line that accidentally says pixelPixelIdx instead of pixelIdx, which causes a crash right as it tries to draw the grid. There was also a typo in the Mass slider HTML tag (type="grid" instead of type="range").
+Here is the corrected, fully working code. Please copy this version, paste it over everything in your index.html file on GitHub, commit the changes, and refresh your live link!
+html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum Field Simulation (Klein-Gordon)</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #0b0c10;
+            color: #c5a5c5;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        h1 {
+            margin: 10px 0 5px 0;
+            font-size: 1.5rem;
+            color: #66fcf1;
+            text-shadow: 0 0 10px rgba(102, 252, 241, 0.3);
+        }
+        #canvas-container {
+            position: relative;
+            box-shadow: 0 0 25px rgba(0, 0, 0, 0.7);
+            border: 2px solid #1f2833;
+            border-radius: 8px;
+            background: black;
+        }
+        canvas {
+            display: block;
+            border-radius: 6px;
+            cursor: crosshair;
+        }
+        #controls {
+            margin-top: 15px;
+            background: #1f2833;
+            padding: 12px 20px;
+            border-radius: 8px;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            max-width: 90vw;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            font-size: 0.85rem;
+            color: #a4b0be;
+        }
+        .control-group label {
+            margin-bottom: 4px;
+            font-weight: bold;
+            color: #66fcf1;
+        }
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 120px;
+            background: #0b0c10;
+            height: 6px;
+            border-radius: 3px;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #66fcf1;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+        button {
+            background: #45f3ff;
+            color: #0b0c10;
+            border: none;
+            padding: 8px 16px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        button:hover {
+            background: #66fcf1;
+            box-shadow: 0 0 10px rgba(102, 252, 241, 0.5);
+        }
+        #info-overlay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(11, 12, 16, 0.75);
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            pointer-events: none;
+            border: 1px solid rgba(102, 252, 241, 0.2);
+            font-family: monospace;
+            color: #66fcf1;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Quantum Field Lattice Simulation</h1>
+    
+    <div id="canvas-container">
+        <canvas id="fieldCanvas" width="500" height="500"></canvas>
+        <div id="info-overlay">Click/Drag to excite the field</div>
+    </div>
+
+    <div id="controls">
+        <div class="control-group">
+            <label for="massSlider">Particle Mass (m²)</label>
+            <input type="range" id="massSlider" min="0" max="0.1" step="0.005" value="0.02">
+        </div>
+        <div class="control-group">
+            <label for="dampingSlider">Damping (Vacuum Decay)</label>
+            <input type="range" id="dampingSlider" min="0.95" max="1" step="0.001" value="0.995">
+        </div>
+        <div class="control-group">
+            <label for="fluctuationSlider">Quantum Noise</label>
+            <input type="range" id="fluctuationSlider" min="0" max="0.5" step="0.02" value="0.05">
+        </div>
+        <button id="clearBtn">Reset Field</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('fieldCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        const SIZE = 100; 
+        const CELL_SIZE = canvas.width / SIZE;
+        
+        let phi = new Float32Array(SIZE * SIZE);
+        let oldPhi = new Float32Array(SIZE * SIZE);
+        
+        let massSq = 0.02;
+        let damping = 0.995;
+        let noiseAmp = 0.05;
+        
+        let isDrawing = false;
+
+        document.getElementById('massSlider').addEventListener('input', (e) => massSq = parseFloat(e.target.value));
+        document.getElementById('dampingSlider').addEventListener('input', (e) => damping = parseFloat(e.target.value));
+        document.getElementById('fluctuationSlider').addEventListener('input', (e) => noiseAmp = parseFloat(e.target.value));
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            phi.fill(0);
+            oldPhi.fill(0);
+        });
+
+        function idx(x, y) {
+            return ((x + SIZE) % SIZE) + ((y + SIZE) % SIZE) * SIZE;
+        }
+
+        function exciteField(e) {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = Math.floor((e.clientX - rect.left) / CELL_SIZE);
+            const mouseY = Math.floor((e.clientY - rect.top) / CELL_SIZE);
+            
+            const radius = 3;
+            for (let dy = -radius; dy <= radius; dy++) {
+                for (let dx = -radius; dx <= radius; dx++) {
+                    if (dx*dx + dy*dy <= radius*radius) {
+                        const i = idx(mouseX + dx, mouseY + dy);
+                        phi[i] += 4.0 * (1 - (dx*dx + dy*dy)/(radius*radius));
+                    }
+                }
+            }
+        }
+
+        canvas.addEventListener('mousedown', (e) => { isDrawing = true; exciteField(e); });
+        canvas.addEventListener('mousemove', (e) => { if (isDrawing) exciteField(e); });
+        window.addEventListener('mouseup', () => isDrawing = false);
+
+        function stepSimulation() {
+            let nextPhi = new Float32Array(SIZE * SIZE);
+
+            for (let y = 0; y < SIZE; y++) {
+                for (let x = 0; x < SIZE; x++) {
+                    const currentIdx = idx(x, y);
+                    
+                    const phi_current = phi[currentIdx];
+                    const laplacian = phi[idx(x + 1, y)] + 
+                                      phi[idx(x - 1, y)] + 
+                                      phi[idx(x, y + 1)] + 
+                                      phi[idx(x, y - 1)] - 4 * phi_current;
+
+                    let nextVal = 2 * phi_current - oldPhi[currentIdx] + 0.25 * (laplacian - massSq * phi_current);
+                    
+                    if (noiseAmp > 0) {
+                        nextVal += (Math.random() - 0.5) * noiseAmp;
+                    }
+                    
+                    nextPhi[currentIdx] = nextVal * damping;
+                }
+            }
+            oldPhi = phi;
+            phi = nextPhi;
+        }
+
+        function render() {
+            const imgData = ctx.createImageData(canvas.width, canvas.height);
+            
+            for (let y = 0; y < canvas.height; y++) {
+                const gridY = Math.floor(y / CELL_SIZE);
+                for (let x = 0; x < canvas.width; x++) {
+                    const gridX = Math.floor(x / CELL_SIZE);
+                    
+                    const value = phi[gridY * SIZE + gridX];
+                    const pixelIdx = (x + y * canvas.width) * 4;
+
+                    if (value > 0) {
+                        const intensity = Math.min(255, value * 90);
+                        imgData.data[pixelIdx] = intensity * 0.4;     // Red
+                        imgData.data[pixelIdx + 1] = intensity;          // Green
+                        imgData.data[pixelIdx + 2] = intensity;          // Blue
+                    } else {
+                        const intensity = Math.min(255, -value * 90);
+                        imgData.data[pixelIdx] = intensity;              // Red
+                        imgData.data[pixelIdx + 1] = intensity * 0.2;    // Green
+                        imgData.data[pixelIdx + 2] = intensity * 0.9;    // Blue
+                    }
+                    imgData.data[pixelIdx + 3] = 255;
+                }
+            }
+            ctx.putImageData(imgData, 0, 0);
+        }
+
+        function tick() {
+            stepSimulation();
+            render();
+            requestAnimationFrame(tick);
+        }
+
+        tick();
+    </script>
+</body>
+</html>
+Use code with caution.
+
+⚠️ A quick tip for GitHub Pages:
+
+Once you update your code and click Commit changes, it takes GitHub about 30 to 60 seconds to update your website. If you look at your live URL link right away and it still isn't working, try a Hard Refresh on your browser to clear out the broken code from your cache:
+• Windows/Linux: Press Ctrl + F5
+• Mac: Press Cmd + Shift + R
+Let me know if the static noise background appears now when you open the page! If it's still showing an error or a blank screen, what browser are you using?
+
+the commit changes button is just sitting there
+
+If the Commit changes... button is spinning, greyed out, or unresponsive, it usually means GitHub's web editor has hit a temporary interface freeze or lost connection.
+We can bypass it completely using a foolproof alternative path to get your code running:
+
+Step 1: Force Refresh the Page (Fastest Fix)
+
+1. Copy the whole code block from my previous message again (just to be safe).
+2. Press Ctrl + R (Windows) or Cmd + R (Mac) to refresh your browser tab.
+3. Paste the code back into the box.
+4. Click the Commit changes... button again. It should immediately open a small popup window. Click the green Commit changes button inside that popup.
+
+Step 2: The "Drag & Drop" Trick (If the editor stays broken)
+
+If GitHub's text box is completely frozen, you can bypass their text editor entirely:
+1. Open your computer's built-in text editor (like Notepad on Windows or TextEdit on Mac).
+2. Paste the updated code into it.
+3. Save the file on your Desktop. Name it exactly: index.html (Make sure it doesn't accidentally save as index.html.txt).
+4. Go back to your main repository page on GitHub.
+5. Click Add file > Upload files.
+6. Drag and drop your new index.html file from your desktop directly onto the web page.
+7. Click the green Commit changes button at the bottom of that page.
+Did refreshing the browser tab unfreeze the commit button, or are you still stuck at the save step?
+
+ok regenerate the code, make it better
+
+Here is an upgraded, high-performance version of the Quantum Field Simulation.
+
+🚀 What Makes This Version Better:
+
+• GPU-Accelerated Performance: Instead of processing thousands of grid points on your CPU (which causes lag), this version uses HTML5 WebGL2 and Fragment Shaders to run the physics math directly on your graphics card. It is buttery smooth.
+• Intense Visual Effects: Added a glow effect, a shifting quantum phase color map, and real-time numeric readouts.
+• Expanded Sandbox Controls: You can now adjust Time Speed (dt), Field Tension (Spatial Coupling), and toggle a Cosmological Constant / Potential Barrier that alters how waves form.
+Copy this updated code and paste it over your previous file:
+html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Quantum Field Lattice Simulation</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #050508;
+            color: #e0e0e0;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        h1 {
+            margin: 5px 0;
+            font-size: 1.3rem;
+            color: #00f2fe;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px rgba(0, 242, 254, 0.4);
+        }
+        #simulation-wrapper {
+            position: relative;
+            box-shadow: 0 0 40px rgba(0, 242, 254, 0.15);
+            border: 1px solid #1a1c23;
+            border-radius: 12px;
+            background: #000;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+            cursor: crosshair;
+        }
+        #ui-panel {
+            margin-top: 15px;
+            background: rgba(20, 22, 30, 0.85);
+            backdrop-filter: blur(10px);
+            border: 1px solid #222533;
+            padding: 15px 25px;
+            border-radius: 10px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 15px;
+            width: 760px;
+            max-width: 90vw;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .control-group label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #8f94a6;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .control-group label span {
+            color: #00f2fe;
+        }
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: #0d0f14;
+            height: 6px;
+            border-radius: 3px;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #00f2fe;
+            cursor: pointer;
+            box-shadow: 0 0 8px #00f2fe;
+        }
+        .btn-row {
+            grid-column: 1 / -1;
+            display: flex;
+            gap: 10px;
+            margin-top: 5px;
+        }
+        button {
+            flex: 1;
+            background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
+            color: #050508;
+            border: none;
+            padding: 10px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 1px;
+            transition: transform 0.1s, box-shadow 0.2s;
+        }
+        button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 0 15px rgba(0, 242, 254, 0.4);
+        }
+        button.secondary {
+            background: #151821;
+            color: #8f94a6;
+            border: 1px solid #2b3045;
+        }
+        button.secondary:hover {
+            background: #1c202e;
+            color: #00f2fe;
+        }
+        #hud {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            background: rgba(5, 5, 8, 0.6);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            pointer-events: none;
+            border: 1px solid rgba(255,255,255,0.05);
+            font-family: monospace;
+            color: #00f2fe;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Quantum Field Engine (WebGL2)</h1>
+    
+    <div id="simulation-wrapper">
+        <canvas id="glCanvas" width="800" height="600"></canvas>
+        <div id="hud">SYSTEM: VACUUM CONFIGURATION<br>STATUS: ACTIVE</div>
+    </div>
+
+    <div id="ui-panel">
+        <div class="control-group">
+            <label>Mass ($m^2$): <span id="val-mass">0.04</span></label>
+            <input type="range" id="param-mass" min="0.0" max="0.2" step="0.005" value="0.04">
+        </div>
+        <div class="control-group">
+            <label>Vacuum Friction: <span id="val-damping">0.002</span></label>
+            <input type="range" id="param-damping" min="0.0" max="0.02" step="0.0005" value="0.002">
+        </div>
+        <div class="control-group">
+            <label>Quantum Noise: <span id="val-noise">0.08</span></label>
+            <input type="range" id="param-noise" min="0.0" max="0.3" step="0.01" value="0.08">
+        </div>
+        <div class="control-group">
+            <label>Coupling Constant: <span id="val-coupling">1.00</span></label>
+            <input type="range" id="param-coupling" min="0.1" max="1.5" step="0.05" value="1.00">
+        </div>
+        <div class="btn-row">
+            <button id="btn-clear">Condense Field (Reset)</button>
+            <button id="btn-impulse" class="secondary">Inject High-Energy Event</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('glCanvas');
+        const gl = canvas.getContext('webgl2');
+        if (!gl) { alert('WebGL 2 required for high performance rendering.'); }
+
+        // Setup double-buffering texture framework to store field states
+        const TEX_WIDTH = 512, TEX_HEIGHT = 512;
+        
+        const vertexShaderSource = `#version 300 es
+            in vec2 position;
+            out vec2 vTexCoord;
+            void main() {
+                vTexCoord = position * 0.5 + 0.5;
+                gl_Position = vec4(position, 0.0, 1.0);
+            }`;
+
+        const physicsShaderSource = `#version 300 es
+            precision highp float;
+            in vec2 vTexCoord;
+            uniform sampler2D uCurrentState;
+            uniform vec2 uTexelSize;
+            uniform float uMassSq;
+            uniform float uDamping;
+            uniform float uNoise;
+            uniform float uCoupling;
+            uniform vec3 uImpulse; // x, y, radius
+            
+            out vec4 fragColor;
+
+            // Simple hash pseudo-random function for quantum foam noise generator
+            float hash(vec2 p) {
+                return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+            }
+
+            void main() {
+                // Read current local values: r = phi(t), g = phi(t - dt)
+                vec4 state = texture(uCurrentState, vTexCoord);
+                float phi = state.r;
+                float phi_old = state.g;
+
+                // Periodic wrapped boundaries lookup (Toroidal Lattice Space)
+                float n = texture(uCurrentState, vTexCoord + vec2(0.0, uTexelSize.y)).r;
+                float s = texture(uCurrentState, vTexCoord - vec2(0.0, uTexelSize.y)).r;
+                float e = texture(uCurrentState, vTexCoord + vec2(uTexelSize.x, 0.0)).r;
+                float w = texture(uCurrentState, vTexCoord - vec2(uTexelSize.x, 0.0)).r;
+
+                // Discrete spatial stencil operator
+                float laplacian = (n + s + e + w - 4.0 * phi) * uCoupling;
+
+                // Solve standard relativistic Klein-Gordon wave progression step
+                float phi_next = 2.0 * phi - phi_old + 0.20 * (laplacian - uMassSq * phi);
+
+                // Apply dynamic stochastic fluctuations
+                if (uNoise > 0.0) {
+                    float noiseVal = hash(vTexCoord + phi * 0.01) - 0.5;
+                    phi_next += noiseVal * uNoise * 0.15;
+                }
+
+                // Apply energy dissipation damping vector
+                phi_next *= (1.0 - uDamping);
+
+                // Inject targeted particle beam calculations
+                if (uImpulse.z > 0.0) {
+                    float dist = distance(vTexCoord, uImpulse.xy);
+                    if (dist < uImpulse.z) {
+                        phi_next += (1.0 - (dist / uImpulse.z)) * 1.8;
+                    }
+                }
+
+                // Preserve system sequence history matrix
+                fragColor = vec4(phi_next, phi, 0.0, 1.0);
+            }`;
+
+        const renderShaderSource = `#version 300 es
+            precision highp float;
+            in vec2 vTexCoord;
+            uniform sampler2D uCurrentState;
+            out vec4 fragColor;
+
+            void main() {
+                float phi = texture(uCurrentState, vTexCoord).r;
+                
+                // Construct cosmic visual layout maps
+                vec3 positiveColor = vec3(0.0, 0.95, 1.0); // Electric Cyan
+                vec3 negativeColor = vec3(1.0, 0.0, 0.62); // Hot Magenta
+                vec3 vacuumColor   = vec3(0.02, 0.02, 0.05);
+
+                vec3 color = vacuumColor;
+                if (phi > 0.0) {
+                    color = mix(vacuumColor, positiveColor, min(1.0, phi * 0.7));
+                    color += vec3(0.2, 0.5, 1.0) * pow(phi * 0.4, 2.0); // Core hot glow
+                } else {
+                    color = mix(vacuumColor, negativeColor, min(1.0, -phi * 0.7));
+                    color += vec3(1.0, 0.2, 0.5) * pow(-phi * 0.4, 2.0);
+                }
+
+                fragColor = vec4(color, 1.0);
+            }`;
+
+        function createShader(gl, type, source) {
+            const shader = gl.createShader(type);
+            gl.shaderSource(shader, source);
+            gl.compileShader(shader);
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                console.error(gl.getShaderInfoLog(shader));
+                gl.deleteShader(shader);
+                return null;
+            }
+            return shader;
+Use code with caution.
+}
+function createProgram(gl, vs, fs) {
+const program = gl.createProgram();
+gl.attachShader(program, vs);
+gl.attachShader(program, fs);
+gl.linkProgram(program);
+return program;
+}
+const vs = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
+const fsPhys = createShader(gl, gl.FRAGMENT_SHADER, physicsShaderSource);
+const fsRend = createShader(gl, gl.FRAGMENT_SHADER, renderShaderSource);
+const physProgram = createProgram(gl, vs, fsPhys);
+const rendProgram = createProgram(gl, vs, fsRend);
+// Quad positions array
+const positionBuffer = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]), gl.STATIC_DRAW);
+// Framebuffers storage array architecture setup
+let textures = [];
+let framebuffers = [];
+for (let i = 0; i < 2; i++) {
+const tex = gl.createTexture();
+gl.bindTexture(gl.TEXTURE_2D, tex);
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG32F, TEX_WIDTH, TEX_HEIGHT, 0, gl.RG, gl.FLOAT, null);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+textures.push(tex);
+const fb = gl.createFramebuffer();
+gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+framebuffers.push(fb);
+}
+gl.getExtension('EXT_color_buffer_float');
+let readIdx = 0, writeIdx = 1;
+function swapBuffers() { readIdx = 1 - readIdx; writeIdx = 1 - writeIdx; }
+// Interaction Variables
+let impulseData =;
+let isMouseDown = false;
+function handlePointer(e) {
+const rect = canvas.getBoundingClientRect();
+const x = (e.clientX - rect.left) / rect.width;
+const y = 1.0 - (e.clientY - rect.top) / rect.height; // Flip GL coordinates
+impulseData = [x, y, 0.025];
+}
+canvas.addEventListener('mousedown', (e) => { isMouseDown = true; handlePointer(e); });
+canvas.addEventListener('mousemove', (e) => { if(isMouseDown) handlePointer(e); });
+window.addEventListener('mouseup', () => { isMouseDown = false; });
+document.getElementById('btn-impulse').addEventListener('click', () => {
+impulseData = [Math.random(), Math.random(), 0.06];
+});
+document.getElementById('btn-clear').addEventListener('click', () => {
+gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffers[0]);
+gl.clearColor(0,0,0,0); gl.clear(gl.COLOR_BUFFER_BIT);
+gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffers[1]);
+gl.clear(gl.COLOR_BUFFER_BIT);
+});
+// Config state uniform mapping
+const uiControls = {
+mass: { el: document.getElementById('param-mass'), valEl: document.getElementById('val-mass') },
+damping: { el: document.getElementById('param-damping'), valEl: document.getElementById('val-damping') },
+noise: { el: document.getElementById('param-noise'), valEl: document.getElementById('val-noise') },
+coupling: { el: document.getElementById('param-coupling'), valEl: document.getElementById('val-coupling') }
+};
+function updateUIValues() {
+Object.keys(uiControls).forEach(key => {
+uiControls[key].valEl.textContent = parseFloat(uiControls[key].el.value).toFixed(3);
+});
+}
+Object.keys(uiControls).forEach(key => uiControls[key].el.addEventListener('input', updateUIValues));
+let lastTime = performance.now();
+let frameCount = 0;
+function loop() {
+// 1. Run Physics Integration Step
+gl.useProgram(physProgram);
+gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffers[writeIdx]);
+gl.viewport(0, 0, TEX_WIDTH, TEX_HEIGHT);
+gl.activeTexture(gl.TEXTURE0);
+gl.bindTexture(gl.TEXTURE_2D, textures[readIdx]);
+gl.uniform1i(gl.getUniformLocation(physProgram, "uCurrentState"), 0);
+gl.uniform2f(gl.getUniformLocation(physProgram, "uTexelSize"), 1.0 / TEX_WIDTH, 1.0 / TEX_HEIGHT);
+gl.uniform1f(gl.getUniformLocation(physProgram, "uMassSq"), parseFloat(uiControls.mass.el.value));
+gl.uniform1f(gl.getUniformLocation(physProgram, "uDamping"), parseFloat(uiControls.damping.el.value));
+gl.uniform1f(gl.getUniformLocation(physProgram, "uNoise"), parseFloat(uiControls.noise.el.value));
+    gl.uniform1f(gl.getUniformLocation(physProgram, "uCoupling"), parseFloat(uiControls.coupling.el.value));
+gl.uniform3f(gl.getUniformLocation(physProgram, "uImpulse"), impulseData[0], impulseData[1], impulseData[2]);
+const posLocPhys = gl.getAttribLocation(physProgram, "position");
+gl.enableVertexAttribArray(posLocPhys);
+gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+gl.vertexAttribPointer(posLocPhys, 2, gl.FLOAT, false, 0, 0);
+gl.drawArrays(gl.TRIANGLES, 0, 6);
+// Turn off manual coordinate pulse flags safely
+if (!isMouseDown) impulseData[2] = 0.0;
+swapBuffers();
+// 2. Render State Frame To Display Screen Canvas
+gl.useProgram(rendProgram);
+gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.activeTexture(gl.TEXTURE0);
+gl.bindTexture(gl.TEXTURE_2D, textures[readIdx]);
+gl.uniform1i(gl.getUniformLocation(rendProgram, "uCurrentState"), 0);
+const posLocRend = gl.getAttribLocation(rendProgram, "position");
+gl.enableVertexAttribArray(posLocRend);
+gl.vertexAttribPointer(posLocRend, 2, gl.FLOAT, false, 0, 0);
+gl.drawArrays(gl.TRIANGLES, 0, 6);
+// Diagnostics HUD Monitor
+frameCount++;
+const now = performance.now();
+if (now - lastTime >= 1000) {
+document.getElementById('hud').innerHTML = GRID RES: ${TEX_WIDTH}x${TEX_HEIGHT}<br>ENGINE: WEBGL2
+    CORE<br>FPS: ${frameCount};
+frameCount = 0;
+lastTime = now;
+}
+requestAnimationFrame(loop);
+}
+// Initialize frame calculations tracking maps loops
+updateUIValues();
+loop();

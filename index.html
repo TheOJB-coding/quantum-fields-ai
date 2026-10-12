@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum Field Simulation (Klein-Gordon)</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #0b0c10;
+            color: #c5a5c5;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        h1 {
+            margin: 10px 0 5px 0;
+            font-size: 1.5rem;
+            color: #66fcf1;
+            text-shadow: 0 0 10px rgba(102, 252, 241, 0.3);
+        }
+        #canvas-container {
+            position: relative;
+            box-shadow: 0 0 25px rgba(0, 0, 0, 0.7);
+            border: 2px solid #1f2833;
+            border-radius: 8px;
+            background: black;
+        }
+        canvas {
+            display: block;
+            border-radius: 6px;
+            cursor: crosshair;
+        }
+        #controls {
+            margin-top: 15px;
+            background: #1f2833;
+            padding: 12px 20px;
+            border-radius: 8px;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            max-width: 90vw;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            font-size: 0.85rem;
+            color: #a4b0be;
+        }
+        .control-group label {
+            margin-bottom: 4px;
+            font-weight: bold;
+            color: #66fcf1;
+        }
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 120px;
+            background: #0b0c10;
+            height: 6px;
+            border-radius: 3px;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #66fcf1;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+        button {
+            background: #45f3ff;
+            color: #0b0c10;
+            border: none;
+            padding: 8px 16px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        button:hover {
+            background: #66fcf1;
+            box-shadow: 0 0 10px rgba(102, 252, 241, 0.5);
+        }
+        #info-overlay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(11, 12, 16, 0.75);
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            pointer-events: none;
+            border: 1px solid rgba(102, 252, 241, 0.2);
+            font-family: monospace;
+            color: #66fcf1;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Quantum Field Lattice Simulation</h1>
+    
+    <div id="canvas-container">
+        <canvas id="fieldCanvas" width="500" height="500"></canvas>
+        <div id="info-overlay">Click/Drag to excite the field</div>
+    </div>
+
+    <div id="controls">
+        <div class="control-group">
+            <label for="massSlider">Particle Mass ($m^2$)</label>
+            <input type="grid" id="massSlider" type="range" min="0" max="0.1" step="0.005" value="0.02">
+        </div>
+        <div class="control-group">
+            <label for="dampingSlider">Damping (Vacuum Decay)</label>
+            <input type="range" id="dampingSlider" min="0.95" max="1" step="0.001" value="0.995">
+        </div>
+        <div class="control-group">
+            <label for="fluctuationSlider">Quantum Noise</label>
+            <input type="range" id="fluctuationSlider" min="0" max="0.5" step="0.02" value="0.05">
+        </div>
+        <button id="clearBtn">Reset Field</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('fieldCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Grid setup (Higher sizing equals sharper resolution but demands more CPU)
+        const SIZE = 100; 
+        const CELL_SIZE = canvas.width / SIZE;
+        
+        // Klein-Gordon Arrays: Current state (phi), Past state (oldPhi), and Velocity helper
+        let phi = new Float32Array(SIZE * SIZE);
+        let oldPhi = new Float32Array(SIZE * SIZE);
+        
+        // Simulation Parameters managed via UI
+        let massSq = 0.02;
+        let damping = 0.995;
+        let noiseAmp = 0.05;
+        
+        // Interaction state [0.15]
+        let isDrawing = false;
+
+        // Sync control parameters
+        document.getElementById('massSlider').addEventListener('input', (e) => massSq = parseFloat(e.target.value));
+        document.getElementById('dampingSlider').addEventListener('input', (e) => damping = parseFloat(e.target.value));
+        document.getElementById('fluctuationSlider').addEventListener('input', (e) => noiseAmp = parseFloat(e.target.value));
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            phi.fill(0);
+            oldPhi.fill(0);
+        });
+
+        // Convert 2D coordinates to 1D flat array indexes
+        function idx(x, y) {
+            // Apply periodic boundary wrapping (Toroidal topology)
+            return ((x + SIZE) % SIZE) + ((y + SIZE) % SIZE) * SIZE;
+        }
+
+        // Excite the field via cursor inputs
+        function exciteField(e) {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = Math.floor((e.clientX - rect.left) / CELL_SIZE);
+            const mouseY = Math.floor((e.clientY - rect.top) / CELL_SIZE);
+            
+            // Create a local localized Gaussian wave-packet (particle excitation)
+            const radius = 3;
+            for (let dy = -radius; dy <= radius; dy++) {
+                for (let dx = -radius; dx <= radius; dx++) {
+                    if (dx*dx + dy*dy <= radius*radius) {
+                        const i = idx(mouseX + dx, mouseY + dy);
+                        // Add energy amplitude to the field
+                        phi[i] += 4.0 * (1 - (dx*dx + dy*dy)/(radius*radius));
+                    }
+                }
+            }
+        }
+
+        // Pointer event listeners [0.15]
+        canvas.addEventListener('mousedown', (e) => { isDrawing = true; exciteField(e); });
+        canvas.addEventListener('mousemove', (e) => { if (isDrawing) exciteField(e); });
+        window.addEventListener('mouseup', () => isDrawing = false);
+
+        // Physics Core Engine: Step the continuous Field partial differential equation
+        function stepSimulation() {
+            let nextPhi = new Float32Array(SIZE * SIZE);
+
+            for (let y = 0; y < SIZE; y++) {
+                for (let x = 0; x < SIZE; x++) {
+                    const currentIdx = idx(x, y);
+                    
+                    // Discrete 5-point Laplacian operator (Spatial curvature)
+                    const phi_current = phi[currentIdx];
+                    const laplacian = phi[idx(x + 1, y)] + 
+                                      phi[idx(x - 1, y)] + 
+                                      phi[idx(x, y + 1)] + 
+                                      phi[idx(x, y - 1)] - 4 * phi_current;
+
+                    // Relativistic Wave Evolution: d^2(Phi)/dt^2 = Laplacian(Phi) - m^2*Phi
+                    // Solved cleanly via Verlet Numerical integration Scheme
+                    let nextVal = 2 * phi_current - oldPhi[currentIdx] + 0.25 * (laplacian - massSq * phi_current);
+                    
+                    // Add Quantum Zero-Point Vacuum Fluctuations (stochastic noise)
+                    if (noiseAmp > 0) {
+                        nextVal += (Math.random() - 0.5) * noiseAmp;
+                    }
+                    
+                    // Apply energy dissipating vacuum damping factor
+                    nextPhi[currentIdx] = nextVal * damping;
+                }
+            }
+            // Swap array references sequentially for next iterative drawing cycle
+            oldPhi = phi;
+            phi = nextPhi;
+        }
+
+        // Render loop: map scalar values to canvas screen buffers
+        function render() {
+            const imgData = ctx.createImageData(canvas.width, canvas.height);
+            
+            for (let y = 0; y < canvas.height; y++) {
+                const gridY = Math.floor(y / CELL_SIZE);
+                for (let x = 0; x < canvas.width; x++) {
+                    const gridX = Math.floor(x / CELL_SIZE);
+                    
+                    const value = phi[gridY * SIZE + gridX];
+                    const pixelIdx = (x + y * canvas.width) * 4;
+
+                    // Color mapping: Dynamic Cyan for Positive Phase, Vibrant Magenta for Negative Phase
+                    if (value > 0) {
+                        const intensity = Math.min(255, value * 90);
+                        imgData.data[pixelPixelIdx] = intensity * 0.4;     // Red
+                        imgData.data[pixelIdx + 1] = intensity;          // Green
+                        imgData.data[pixelIdx + 2] = intensity;          // Blue
+                    } else {
+                        const intensity = Math.min(255, -value * 90);
+                        imgData.data[pixelIdx] = intensity;              // Red
+                        imgData.data[pixelIdx + 1] = intensity * 0.2;    // Green
+                        imgData.data[pixelIdx + 2] = intensity * 0.9;    // Blue
+                    }
+                    imgData.data[pixelIdx + 3] = 255;                    // Opacity Alpha Channel
+                }
